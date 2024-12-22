@@ -7,9 +7,22 @@ Experimental results on the RUOD and DUO datasets demonstrate that our model out
 
 ![image](https://github.com/down-with-me/RGM-YOLO/blob/main/The%20flowchart%20of%20RGM-YOLO..jpg)
 
+## Application Scenarios:  
+* Real-time object detection on underwater exploration devices. 
+* Underwater object recognition and environmental monitoring.  
+* Target tracking and detection in oceanographic research.
+
+## Features
+
+- **Residual Attention Block**: Enhances the model's denoising capability and optimizes feature quality.The code implementation can be found in `DRANet.py`.  
+- **Expansion Large-kernel Network**: Improves algorithm flexibility by expanding the receptive field.The code implementation can be found in `GLSKNet.py`.
+- **Content-Guided Attention-Based Hybrid Fusion Module**: Fuses low-level and high-level features, focusing on more valuable information.The code implementation can be found in `DEANet.py`.
+  
+
 ## Requirements
 ### Dependencies
-* Python>=3.10.14
+The dependency list can be found in the `requirements.txt` file. The main dependencies include but are not limited to:
+* Python>=3.8.0
 * pytorch>=2.0.1
 * matplotlib>=3.2.2
 * numpy>=1.18.5
@@ -26,17 +39,18 @@ Experimental results on the RUOD and DUO datasets demonstrate that our model out
 * seaborn>=0.11.0
 * albumentations>=1.0.3
 * pycocotools>=2.0
+  
+### Easily install the Dependencies with the following command:
+```
+pip install -r requirements.txt
 
+```
 
 ### It was ran in following environment:
 * NVIDIA 3090 GPU
 * Intel(R) Core(TM) i7-14700K
 * Ubuntu 22.04.4 LTS
-
-### Easily install the environment with the following command:
-```
-pip install -r requirements.txt
-```
+* Python
 
 ## Preparing Data
 1. To build dataset, you'll also need following datasets.
