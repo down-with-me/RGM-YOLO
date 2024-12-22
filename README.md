@@ -118,7 +118,7 @@ You can get the pre-trained model based on the YOLOv9 from <a  href="https://git
 
 
 ## Getting Started:
-### Usage
+### Usage Example
 
 * Training
 
