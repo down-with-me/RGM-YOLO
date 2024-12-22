@@ -12,7 +12,7 @@ Experimental results on the RUOD and DUO datasets demonstrate that our model out
 * Underwater object recognition and environmental monitoring.  
 * Target tracking and detection in oceanographic research.
 
-## Features
+## Key Algorithm Description and Implementation
 
 - **Residual Attention Block**: Enhances the model's denoising capability and optimizes feature quality.The code implementation can be found in `DRANet.py`.  
 - **Expansion Large-kernel Network**: Improves algorithm flexibility by expanding the receptive field.The code implementation can be found in `GLSKNet.py`.
