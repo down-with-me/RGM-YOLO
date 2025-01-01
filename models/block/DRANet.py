@@ -2,30 +2,33 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
+# Upsampling Module using Transposed Convolution
 class Up(nn.Module):
-
     def __init__(self, nc, bias):
         super(Up, self).__init__()
+        # Transposed convolution to double the spatial resolution
         self.up = nn.ConvTranspose2d(in_channels=nc, out_channels=nc, kernel_size=2, stride=2, bias=bias)
 
     def forward(self, x1, x):
-        x2 = self.up(x1)
+        x2 = self.up(x1)  # Upsample input x1
 
+        # Compute the difference in size between x and x2
         diffY = x.size()[2] - x2.size()[2]
         diffX = x.size()[3] - x2.size()[3]
+
+        # Pad x2 to match the size of x
         x3 = F.pad(x2, [diffX // 2, diffX - diffX // 2, diffY // 2, diffY - diffY // 2])
         return x3
 
 
-## Spatial Attention
+# Basic Convolution Block
 class Basic(nn.Module):
     def __init__(self, in_planes, out_planes, kernel_size, padding=0, bias=False):
         super(Basic, self).__init__()
         self.out_channels = out_planes
-        groups = 1
-        self.conv = nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size, padding=padding, groups=groups, bias=bias)
-        self.relu = nn.ReLU()
+        # Standard convolution
+        self.conv = nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size, padding=padding, bias=bias)
+        self.relu = nn.ReLU()  # ReLU activation
 
     def forward(self, x):
         x = self.conv(x)
@@ -33,62 +36,71 @@ class Basic(nn.Module):
         return x
 
 
+# Channel Pooling (Combines max pooling and average pooling across the channel dimension)
 class ChannelPool(nn.Module):
     def __init__(self):
         super(ChannelPool, self).__init__()
 
     def forward(self, x):
+        # Max pooling and average pooling along the channel dimension
         return torch.cat((torch.max(x, 1)[0].unsqueeze(1), torch.mean(x, 1).unsqueeze(1)), dim=1)
 
 
+# Spatial Attention Block (SAB)
 class SAB(nn.Module):
     def __init__(self):
         super(SAB, self).__init__()
         kernel_size = 5
+        # Combines pooling and convolution for spatial attention
         self.compress = ChannelPool()
         self.spatial = Basic(2, 1, kernel_size, padding=(kernel_size - 1) // 2, bias=False)
 
     def forward(self, x):
-        x_compress = self.compress(x)
-        x_out = self.spatial(x_compress)
-        scale = torch.sigmoid(x_out)
-        return x * scale
+        x_compress = self.compress(x)  # Channel pooling
+        x_out = self.spatial(x_compress)  # Spatial attention via convolution
+        scale = torch.sigmoid(x_out)  # Sigmoid activation for scaling
+        return x * scale  # Apply spatial attention
 
 
-## Channel Attention Layer
+# Channel Attention Block (CAB)
 class CAB(nn.Module):
     def __init__(self, nc, reduction=8, bias=False):
         super(CAB, self).__init__()
+        # Global average pooling
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        # Two fully connected layers with a reduction ratio
         self.conv_du = nn.Sequential(
             nn.Conv2d(nc, nc // reduction, kernel_size=1, padding=0, bias=bias),
             nn.ReLU(inplace=True),
             nn.Conv2d(nc // reduction, nc, kernel_size=1, padding=0, bias=bias),
-            nn.Sigmoid()
+            nn.Sigmoid()  # Sigmoid activation for scaling
         )
 
     def forward(self, x):
-        y = self.avg_pool(x)
-        y = self.conv_du(y)
-        return x * y
+        y = self.avg_pool(x)  # Global average pooling
+        y = self.conv_du(y)  # Generate channel attention weights
+        return x * y  # Apply channel attention
 
 
+# Residual Attention Block (RAB)
 class RAB(nn.Module):
     def __init__(self, in_channels=64, out_channels=64, bias=True):
         super(RAB, self).__init__()
         kernel_size = 3
         stride = 1
         padding = 1
-        layers = []
-        layers.append(
-            nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, bias=bias))
-        layers.append(nn.ReLU(inplace=True))
-        layers.append(
-            nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, bias=bias))
-        self.res = nn.Sequential(*layers)
-        self.sab = SAB()
+
+        # Convolution layers for residual connections
+        layers = [
+            nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, bias=bias),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, bias=bias)
+        ]
+        self.res = nn.Sequential(*layers)  # Residual block
+        self.sab = SAB()  # Spatial attention block
 
     def forward(self, x):
+        # Multi-level residual connections
         x1 = x + self.res(x)
         x2 = x1 + self.res(x1)
         x3 = x2 + self.res(x2)
@@ -97,20 +109,23 @@ class RAB(nn.Module):
         x4 = x3_1 + self.res(x3_1)
         x4_1 = x + x4
 
+        # Apply spatial attention
         x5 = self.sab(x4_1)
         x5_1 = x + x5
 
         return x5_1
 
 
+# Hybrid Dilated Residual Attention Block (HDRAB)
 class HDRAB(nn.Module):
     def __init__(self, in_channels=64, out_channels=64, bias=True):
         super(HDRAB, self).__init__()
         kernel_size = 3
         reduction = 8
 
-        self.cab = CAB(in_channels, reduction, bias)
+        self.cab = CAB(in_channels, reduction, bias)  # Channel attention block
 
+        # Convolutions with different dilation rates
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=1, dilation=1, bias=bias)
         self.relu1 = nn.ReLU(inplace=True)
 
@@ -121,6 +136,7 @@ class HDRAB(nn.Module):
 
         self.conv4 = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=4, dilation=4, bias=bias)
 
+        # Additional convolutional layers for intermediate processing
         self.conv3_1 = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=3, dilation=3, bias=bias)
         self.relu3_1 = nn.ReLU(inplace=True)
 
@@ -132,6 +148,7 @@ class HDRAB(nn.Module):
         self.conv_tail = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=1, dilation=1, bias=bias)
 
     def forward(self, y):
+        # Multi-scale feature extraction with dilated convolutions
         y1 = self.conv1(y)
         y1_1 = self.relu1(y1)
         y2 = self.conv2(y1_1)
@@ -152,7 +169,7 @@ class HDRAB(nn.Module):
         y8 = self.conv_tail(y7_1 + y1)
         y8_1 = y8 + y6_1
 
-        y9 = self.cab(y8_1)
-        y9_1 = y + y9
+        y9 = self.cab(y8_1)  # Apply channel attention
+        y9_1 = y + y9  # Final residual connection
 
         return y9_1
